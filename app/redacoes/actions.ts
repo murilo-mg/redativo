@@ -129,3 +129,45 @@ export async function atualizarRedacao(formData: FormData) {
     `/redacoes/${id}?mensagem=Redação atualizada com sucesso.`,
   );
 }
+
+export async function enviarParaCorrecao(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+
+  if (!id) {
+    redirect("/dashboard?erro=Redação inválida.");
+  }
+
+  const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getClaims();
+
+  if (!authData?.claims?.sub) {
+    redirect("/login");
+  }
+
+  const { data: redacaoAtualizada, error } = await supabase
+    .from("redacoes")
+    .update({
+      status: "enviada",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("aluno_id", String(authData.claims.sub))
+    .eq("status", "rascunho")
+    .select("id")
+    .maybeSingle();
+
+  if (error || !redacaoAtualizada) {
+    console.error("Erro ao enviar redação:", error);
+
+    redirect(
+      `/redacoes/${id}?erro=Não foi possível enviar a redação.`,
+    );
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/redacoes/${id}`);
+
+  redirect(
+    `/redacoes/${id}?mensagem=Redação enviada para correção.`,
+  );
+}
